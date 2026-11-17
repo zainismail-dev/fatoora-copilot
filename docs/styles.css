@@ -269,7 +269,7 @@ body[data-view="overview"] .board{grid-template-columns:minmax(0,1fr) minmax(0,1
 .rc-title h2,.rc-top>h2{margin:0;font-family:var(--display);font-size:26px;font-weight:700;line-height:1.25}
 .rc-lead{margin:10px 0 6px;font-size:15.5px;max-width:68ch}
 .rc-acts{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-top:12px}
-.rc-acts a.btn{text-decoration:none}
+.rc-acts a.btn{text-decoration:none;color:var(--ink)}
 .rc-confirm{display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:14px}
 .rc-body{padding:18px 22px 22px;display:grid;gap:18px}
 .rc-body>*,.rc-grid>*,.rc-side>*,.rc-secs>*{min-width:0}
