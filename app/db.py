@@ -52,6 +52,19 @@ CREATE TABLE IF NOT EXISTS extraction_cache (
     data TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS reconciliations (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    period_start TEXT NOT NULL,
+    period_end TEXT NOT NULL,
+    bank_file TEXT NOT NULL,
+    book_file TEXT NOT NULL,
+    bank_closing REAL NOT NULL,
+    book_closing REAL NOT NULL,
+    difference REAL NOT NULL,
+    result TEXT NOT NULL             -- the full reconciliation as JSON, including the carry-forward list
+);
 CREATE TABLE IF NOT EXISTS app_state (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL

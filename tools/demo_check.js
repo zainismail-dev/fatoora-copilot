@@ -82,6 +82,14 @@ const server = http.createServer((req, res) => {
   await p.screenshot({ path: path.join(OUT, "demo-ask.png") });
   await p.click("#close-agent");
 
+  await p.click('#nav a[data-view="reconcile"]'); await p.waitForTimeout(1200);
+  ok((await p.$$eval(".rc-hist", (e) => e.length)) === 1, "bank reconciliation opens with October already reconciled");
+  await p.click("#rc-sample"); await p.waitForTimeout(2000);
+  const diff = await p.$eval(".rc-st tr.diff td", (e) => e.textContent.trim());
+  ok(diff === "0.00" && (await p.$$eval(".rc-hist", (e) => e.length)) === 2, "November sample reconciles to a 0.00 difference");
+  ok((await p.$$eval('[data-sec="outstanding"] tbody tr', (e) => e.length)) === 3 && (await p.textContent('[data-sec="outstanding"]')).includes("100235"), "October's uncashed cheque is carried into November");
+  await p.screenshot({ path: path.join(OUT, "demo-reconcile.png"), fullPage: true });
+
   const m = await b.newPage({ viewport: { width: 390, height: 844 } });
   await m.goto(site); await m.waitForTimeout(500);
   ok((await m.evaluate(() => document.documentElement.scrollWidth)) <= 390, "fits a phone screen");

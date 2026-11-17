@@ -8,13 +8,13 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import assistant, auth, db, extract, mailer, scheduler, services
+from . import assistant, auth, db, extract, mailer, reconcile, reconciliations, scheduler, services
 from .config import ROOT, settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -54,6 +54,11 @@ async def no_stale_pages(request: Request, call_next):
 
 @app.exception_handler(services.ActionError)
 async def action_error(_: Request, e: services.ActionError):
+    return JSONResponse({"ok": False, "code": e.code, "message": str(e)}, status_code=404 if e.code == "not_found" else 400)
+
+
+@app.exception_handler(reconcile.ReconcileError)
+async def reconcile_error(_: Request, e: reconcile.ReconcileError):
     return JSONResponse({"ok": False, "code": e.code, "message": str(e)}, status_code=404 if e.code == "not_found" else 400)
 
 
@@ -191,6 +196,42 @@ def delete(invoice_id: str, _: dict = Depends(manager)):
 def invoice_file(invoice_id: str, _: dict = Depends(current_user)):
     path, mime = services.file_for(invoice_id)
     return FileResponse(path, media_type=mime, filename=path.name.split("_", 1)[-1])
+
+
+# ---------- bank reconciliation ----------
+def _balance(v: str) -> float | None:
+    v = (v or "").strip()
+    return reconcile.parse_amount(v) / 100 if v else None
+
+
+@app.post("/api/reconciliations")
+def run_reconciliation(bank: UploadFile = File(...), book: UploadFile = File(...), bank_closing: str = Form(""),
+                       book_closing: str = Form(""), user: dict = Depends(current_user)):
+    rec = reconciliations.run(bank.file.read(), bank.filename or "bank.csv", book.file.read(), book.filename or "book.csv",
+                              user, _balance(bank_closing), _balance(book_closing))
+    return {"ok": True, "reconciliation": rec}
+
+
+@app.get("/api/reconciliations")
+def list_reconciliations(_: dict = Depends(current_user)):
+    return {"reconciliations": reconciliations.list_all()}
+
+
+@app.get("/api/reconciliations/{rid}")
+def get_reconciliation(rid: str, _: dict = Depends(current_user)):
+    return {"reconciliation": reconciliations.get(rid)}
+
+
+@app.get("/api/reconciliations/{rid}/xlsx")
+def reconciliation_xlsx(rid: str, _: dict = Depends(current_user)):
+    return Response(reconciliations.xlsx(rid), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="bank-reconciliation-{rid}.xlsx"'})
+
+
+@app.delete("/api/reconciliations/{rid}")
+def delete_reconciliation(rid: str, _: dict = Depends(manager)):
+    reconciliations.delete(rid)
+    return {"ok": True}
 
 
 # ---------- email approval link (the token is the permission) ----------

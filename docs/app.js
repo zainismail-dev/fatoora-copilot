@@ -4,7 +4,7 @@
 
 /* ---------- state ---------- */
 const T = window.T;
-const VIEWS = ["overview", "invoices", "approvals", "spend", "intake"];
+const VIEWS = ["overview", "invoices", "approvals", "spend", "intake", "reconcile"];
 const state = { view: "overview", invoices: [], me: null, mode: "loading", filter: "all", query: "", deleting: false, asTable: false, viewing: null, rejecting: false, editing: false, landed: null, busy: false };
 let lang = "ar";
 try { const saved = localStorage.getItem("fc-lang"); if (saved === "ar" || saved === "en") lang = saved; } catch (e) {}
@@ -136,6 +136,7 @@ const ICONS = {
   check: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/>',
   chart: '<path d="M4 20h16"/><path d="M7 16V9M12 16V5M17 16v-4"/>',
   inbox: '<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5 5h14l2 8v6H3v-6z"/>',
+  bank: '<path d="M3 9.5 12 4l9 5.5"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18"/>',
 };
 function renderStatic() {
   const L = t(), set = (id, v) => { $(id).textContent = v; };
@@ -253,6 +254,7 @@ function renderSpend(m) {
 function render() {
   const m = metrics();
   renderChrome(); renderNav(m); renderHero(m); renderPipe(m); renderFilters(); renderLedger(); renderDesk(m); renderSpend(m);
+  if (window.FC_RECON) window.FC_RECON.render();
   if (state.viewing) renderViewer();
 }
 function renderAll() { renderStatic(); render(); drawGuilloche(); }
@@ -380,6 +382,9 @@ async function ask(q) {
   } finally { state.asking = false; }
 }
 
+/* ---------- shared with recon.js (the bank reconciliation page) ---------- */
+window.FC_APP = { api, t, esc, money, toast, fmtDate, isManager, state, locale };
+
 /* ---------- events ---------- */
 document.addEventListener("click", (e) => {
   const el = e.target.closest("[data-filter],[data-filter-go],[data-open],[data-approve],[data-reject],[data-confirm],[data-cancel],[data-edit],[data-cancel-edit],[data-retry],[data-delete],[data-confirm-delete],[data-cancel-delete],[data-q],a[data-view],#copy-addr");
@@ -427,7 +432,7 @@ window.addEventListener("hashchange", () => { const v = location.hash.slice(1); 
 $("upload-btn").onclick = () => $("file-in").click();
 $("spend-toggle").onclick = () => { state.asTable = !state.asTable; renderSpend(metrics()); };
 $("logout").onclick = async () => {
-  if (window.FC_DEMO) { window.FC_DEMO.reset(); closeViewer(); state.filter = "all"; state.query = ""; $("ledger-search").value = ""; await load(true); showView("overview"); toast(t().demoReset); return; }
+  if (window.FC_DEMO) { window.FC_DEMO.reset(); if (window.FC_RECON) window.FC_RECON.reset(); closeViewer(); state.filter = "all"; state.query = ""; $("ledger-search").value = ""; await load(true); showView("overview"); toast(t().demoReset); return; }
   try { await fetch("/api/logout", { method: "POST" }); } finally { location.href = "/login"; }
 };
 $("open-agent").onclick = () => { $("drawer").hidden = false; if (!$("msgs").children.length) addMsg(t().hello, "bot"); $("ask-input").focus(); };

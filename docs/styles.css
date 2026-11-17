@@ -260,3 +260,55 @@ body[data-view="overview"] .board{grid-template-columns:minmax(0,1fr) minmax(0,1
 .danger-zone{border-top:1px solid var(--rule);padding-top:12px;display:flex;flex-direction:column;gap:8px}
 .danger-zone p{margin:0;font-size:13px;color:var(--ink-soft)}
 .link.danger{color:var(--flag)}
+
+/* ---------- bank reconciliation ---------- */
+.rc-grid{display:grid;gap:22px;grid-template-columns:minmax(0,1fr) 340px;align-items:start}
+.rc-side{display:grid;gap:22px}
+.rc-top{padding:22px 22px 16px;border-bottom:1px solid var(--rule)}
+.rc-title{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px}
+.rc-title h2,.rc-top>h2{margin:0;font-family:var(--display);font-size:26px;font-weight:700;line-height:1.25}
+.rc-lead{margin:10px 0 6px;font-size:15.5px;max-width:68ch}
+.rc-acts{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-top:12px}
+.rc-acts a.btn{text-decoration:none}
+.rc-confirm{display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:14px}
+.rc-body{padding:18px 22px 22px;display:grid;gap:18px}
+.rc-body>*,.rc-grid>*,.rc-side>*,.rc-secs>*{min-width:0}
+.rc-stwrap h3{margin:0 0 8px;font-size:16px;font-weight:500}
+.rc-st{min-width:0;width:100%;max-width:560px;border:1px solid var(--rule);border-radius:8px;border-collapse:separate;border-spacing:0;overflow:hidden;background:var(--doc);color:var(--doc-ink)}
+.rc-st th,.rc-st td{padding:8px 14px;border-bottom:1px solid var(--doc-rule);font-size:14px}
+.rc-st th{background:transparent;color:var(--doc-ink);font-weight:400;white-space:normal}
+.rc-st tr.sub th,.rc-st tr.sub td{font-weight:700;border-bottom:2px solid var(--doc-ink)}
+.rc-st tr.gap td{padding:4px;border-bottom:1px solid var(--doc-rule);background:var(--tint)}
+.rc-st tr.diff th,.rc-st tr.diff td{font-weight:700;border-bottom:0}
+.rc-st tr.diff.ok td{color:var(--doc-approved)} .rc-st tr.diff.bad td{color:var(--doc-flag)}
+.rc-secs{display:grid;gap:10px}
+.rc-sec{border:1px solid var(--rule);border-radius:8px;background:var(--sheet)}
+.rc-sec>summary{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;list-style:none}
+.rc-sec>summary::-webkit-details-marker{display:none}
+.rc-sec>summary::before{content:"›";display:inline-block;width:10px;color:var(--ink-soft);transition:transform .15s}
+[dir="rtl"] .rc-sec>summary::before{transform:scaleX(-1)}
+.rc-sec[open]>summary::before{transform:rotate(90deg)}
+.rc-sh{font-weight:500;margin-inline-end:auto}
+.rc-count{font-size:12.5px;border:1px solid var(--rule);border-radius:10px;padding:0 8px;color:var(--ink-soft)}
+.rc-total{font-weight:500}
+.rc-sec>.fine{padding:0 14px 10px}
+.rc-sec .empty{padding:0 14px 14px}
+.rc-t{min-width:560px}
+.rc-t th,.rc-t td{padding:8px 14px;font-size:13.5px}
+.rc-tag{display:inline-block;font-size:11.5px;border:1px solid var(--rule);border-radius:4px;padding:0 6px;color:var(--ink-soft);margin-inline-start:4px}
+.rc-tag.bad{color:var(--flag);border-color:var(--flag)}
+.rc-review{margin:0;padding:0 14px 14px 14px;padding-inline-start:32px;display:grid;gap:6px;font-size:14px}
+.rc-form{padding:16px 18px;display:grid;gap:12px}
+.rc-drop{padding:14px;gap:4px}
+.rc-drop span{font-size:12.5px;overflow-wrap:anywhere}
+.rc-drop.chosen{border-style:solid;border-color:var(--approved);color:var(--ink)}
+.rc-bal summary{cursor:pointer;font-size:13.5px;color:var(--ink-soft)}
+.rc-bal label{display:grid;gap:4px;font-size:13px;margin-top:10px}
+.rc-bal input{border:1px solid var(--rule);border-radius:6px;padding:7px 10px;background:var(--paper)}
+.rc-err{margin:0;font-size:13.5px;color:var(--flag)}
+.rc-list{list-style:none;margin:0;padding:8px}
+.rc-hist{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:0;border-radius:6px;background:transparent;cursor:pointer;text-align:start}
+.rc-hist:hover{background:var(--tint)} .rc-hist.on{background:var(--tint);font-weight:500}
+.stamp.small{font-size:11.5px;padding:0 7px;border-width:1.5px}
+@media (max-width:1100px){.rc-grid{grid-template-columns:minmax(0,1fr)}.rc-side{order:-1}}
+@media (max-width:520px){.rc-top,.rc-body{padding-inline:16px}.rc-title h2{font-size:22px}}

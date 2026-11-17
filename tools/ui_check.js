@@ -26,6 +26,7 @@ const server = http.createServer((req, res) => {
   if (url.startsWith("/static/")) return file(url.slice(8), url.endsWith(".css") ? "text/css" : "application/javascript");
   if (url === "/api/me") return json(200, { user: { id: 1, name: role === "manager" ? "Maha" : "Sara", email: "m@x.sa", role }, company: "Al Riyada Trading Co.", inbox: "ap@riyada.sa", email_enabled: true, ai: ["gemini", "mistral"] });
   if (url === "/api/invoices") return json(200, { invoices });
+  if (url === "/api/reconciliations") return json(200, { reconciliations: [] });
   let body = []; req.on("data", (d) => body.push(d)); req.on("end", () => {
     body = Buffer.concat(body);
     if (url === "/api/invoices/upload") { const n = inv("FC-4", "", "", "", 0, 0, 0, "manual", { checks: [], lines: [], number: "", file_name: "scan.pdf", extracted_by: "manual", note: "gemini: HTTP 429" }); invoices.push(n); return json(200, { ok: true, invoice: n }); }

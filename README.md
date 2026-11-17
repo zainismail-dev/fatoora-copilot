@@ -1,6 +1,6 @@
 # Fatoora Copilot · فاتورة كوبايلت
 
-**An AI accounts-payable assistant for Saudi finance teams.** Supplier invoices arrive by upload or email, AI reads them in Arabic or English, ZATCA-style pre-checks catch errors before anyone pays, and the finance manager approves with one click.
+**An AI accounts-payable assistant for Saudi finance teams.** Supplier invoices arrive by upload or email, AI reads them in Arabic or English, ZATCA-style pre-checks catch errors before anyone pays, and the finance manager approves with one click. At month end, it reconciles the bank statement against the cash book and explains every riyal of difference.
 
 [![CI](https://github.com/zainismail-dev/fatoora-copilot/actions/workflows/ci.yml/badge.svg)](https://github.com/zainismail-dev/fatoora-copilot/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
@@ -24,6 +24,7 @@ Finance teams in Saudi Arabia still key supplier invoices into spreadsheets by h
 | **Checks every invoice** | 7 rules in plain code: VAT number format · VAT = 15% · totals add up · required fields · duplicates · currency · large-amount flag |
 | **Routes approvals** | Clean invoices go to the finance manager; flagged ones go back to the team with the reason |
 | **Never gets stuck** | If an AI model is busy or out of quota, the next one is tried; if all are busy, the invoice opens for manual entry |
+| **Reconciles the bank** | Upload the bank statement and cash book (CSV or Excel, Arabic or English columns). Every line is matched by cheque number, amount and date; outstanding cheques, deposits in transit, bank charges, recording errors and double entries are listed; the reconciliation statement is exported to Excel, and uncashed cheques carry into next month automatically |
 | **Works the way finance does** | Arabic-first interface, roles (accountant and manager), search, CSV export, approval emails, weekly digest |
 
 ![An invoice stopped by the checks](assets/invoice-check-en.png)
@@ -47,13 +48,14 @@ flowchart LR
 
 **Design decisions**
 - **AI reads, code decides.** The model only extracts what is printed. Every pass/fail decision is a plain, tested rule in [`app/checks.py`](app/checks.py), so results are repeatable and auditable.
+- **Reconciliation without guesswork.** Bank matching uses four explicit rules in order (cheque number + amount, amount + same date, amount + date within a week, the only matching amount). Each match records the rule that made it, every row is accounted for, and a match is never forced when two candidates are equally likely.
 - **Graceful degradation.** Several AI models in a fallback chain with retries, and a file-hash cache so the same file is never read twice. Email failures never lose an invoice.
 - **Security.** Salted PBKDF2 passwords, signed session cookies, login throttling, role checks on every write, one-time approval links that rotate after each decision, and security headers. Tokens and file paths never reach the browser.
 - **Small and dependable.** FastAPI and SQLite, with a plain HTML/CSS/JS frontend: no build step and no framework lock-in.
 
 ## Tech stack
 
-**Backend:** Python 3.11+, FastAPI, SQLite, httpx · **AI:** Google Gemini (multi-model), Mistral OCR as backup · **Frontend:** HTML, CSS, vanilla JavaScript, Readex Pro and Reem Kufi fonts, RTL-first · **Email:** Gmail IMAP/SMTP · **Quality:** pytest, ruff, Playwright browser tests, GitHub Actions
+**Backend:** Python 3.11+, FastAPI, SQLite, httpx, openpyxl · **AI:** Google Gemini (multi-model), Mistral OCR as backup · **Frontend:** HTML, CSS, vanilla JavaScript, Readex Pro and Reem Kufi fonts, RTL-first · **Email:** Gmail IMAP/SMTP · **Quality:** pytest, ruff, Playwright browser tests, GitHub Actions
 
 ---
 
@@ -69,7 +71,7 @@ cp .env.example .env               # then add your keys (see below)
 uvicorn app.main:app --reload
 ```
 
-Open **http://localhost:8000** and sign in with `ADMIN_EMAIL` / `ADMIN_PASSWORD` from `.env`. Try the files in [`samples/`](samples), four of which contain planted errors. API docs are generated at **/docs**.
+Open **http://localhost:8000** and sign in with `ADMIN_EMAIL` / `ADMIN_PASSWORD` from `.env`. Try the files in [`samples/`](samples), four of which contain planted errors. For the bank reconciliation, upload October's files from [`samples/bank/`](samples/bank) first, then November's, to see uncashed cheques carry forward. API docs are generated at **/docs**.
 
 **`.env` essentials**
 
@@ -87,7 +89,7 @@ Add an accountant account: `python -m app.cli add-user sara@company.sa "Sara" cl
 ## Tests
 
 ```bash
-pytest                                              # 55+ tests: rules, AI fallback, services, auth, API, JS/Python parity
+pytest                                              # 60+ tests: rules, AI fallback, reconciliation, services, auth, API, JS/Python parity
 python tools/build_demo.py && node tools/demo_check.js   # end-to-end browser test of the demo site
 ```
 
@@ -98,12 +100,15 @@ app/
   main.py        routes, sessions, roles, security headers
   services.py    receive, check, correct, approve, delete, export
   checks.py      the ZATCA pre-check rules
+  reconcile.py   bank reconciliation engine (matching rules, statement, carry-forward)
+  reconciliations.py   saved monthly reconciliations and the Excel export
   extract/       AI reading: model chain, retries, cache, manual fallback
   auth.py        users, PBKDF2 passwords, login throttling
   inbox.py · mailer.py · scheduler.py   Gmail intake, emails, Sunday digest
-web/             the app (index.html, app.js, i18n.js, styles.css) and demo.js
+web/             the app (index.html, app.js, recon.js, i18n.js, styles.css), demo.js and reconcile.js (browser copy of the engine for the demo)
 docs/            built demo for GitHub Pages (python tools/build_demo.py)
 samples/         8 fictional invoices, 4 with planted errors
+samples/bank/    October and November bank statements and cash books for a fictional company
 tests/           pytest suite
 ```
 

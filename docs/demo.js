@@ -94,7 +94,7 @@ function ingest(key, receivedAt) {
   return x;
 }
 function seed() {
-  db = { seq: 1, next: 0, invoices: [] };
+  db = { seq: 1, next: 0, invoices: [], recons: [], reconSeeded: false };
   SEED.forEach(([key, at, decided]) => {
     const x = ingest(key, at);
     if (decided) Object.assign(x, { status: decided, decided_at: at.replace(/\d\d:\d\d$/, "14:30"), decided_by: USER.email });
@@ -103,7 +103,7 @@ function seed() {
 }
 function save() { try { localStorage.setItem(STORE, JSON.stringify(db)); } catch (e) { /* storage unavailable: keep in memory */ } }
 function load() {
-  try { const raw = localStorage.getItem(STORE); if (raw) { db = JSON.parse(raw); if (db && Array.isArray(db.invoices)) return; } } catch (e) { /* ignore */ }
+  try { const raw = localStorage.getItem(STORE); if (raw) { db = JSON.parse(raw); if (db && Array.isArray(db.invoices)) { db.recons = db.recons || []; return; } } } catch (e) { /* ignore */ }
   seed();
 }
 const publicInv = (x) => { const c = Object.assign({}, x); delete c.sample; return c; };
@@ -133,6 +133,7 @@ async function fetchDemo(path, options) {
     const x = ingest(UPLOAD_ORDER[db.next++]); save();
     return reply(200, { ok: true, invoice: publicInv(x) });
   }
+  if (url.startsWith("/api/reconciliations")) return reconRoutes(url, method, options);
   const m = url.match(/^\/api\/invoices\/([^/]+)(?:\/(details|decide|retry))?$/);
   if (!m) return fail("not_found");
   const x = db.invoices.find((i) => i.id === decodeURIComponent(m[1]));
@@ -165,6 +166,66 @@ async function fetchDemo(path, options) {
   return fail("not_found");
 }
 
+/* ---------- bank reconciliation (same routes as app/main.py; the engine is web/reconcile.js) ---------- */
+const engine = () => (typeof window !== "undefined" && window.FC_RECON_ENGINE) || require("./reconcile.js");
+const SUMMARY_KEYS = ["id", "created_at", "created_by", "period_start", "period_end", "bank_file", "book_file", "bank_closing", "book_closing", "difference"];
+const summary = (r) => Object.fromEntries(SUMMARY_KEYS.map((k) => [k, r[k]]));
+const previousFor = (start) => db.recons.filter((r) => r.period_end < start).sort((a, b) => (a.period_end < b.period_end ? 1 : -1))[0] || null;
+
+function saveRun(result, bankFile, bookFile, prev) {
+  result.previous = prev ? { id: prev.id, period_end: prev.period_end } : null;
+  const month = result.period.end.slice(0, 7), st = result.statement;
+  db.recons = db.recons.filter((r) => r.period_end.slice(0, 7) !== month);
+  const rec = { id: `RC-${month}-${Math.random().toString(16).slice(2, 6)}`, created_at: nowRiyadh(), created_by: USER.name,
+    period_start: result.period.start, period_end: result.period.end, bank_file: bankFile, book_file: bookFile,
+    bank_closing: st.bank_closing, book_closing: st.book_closing, difference: st.difference, result };
+  db.recons.push(rec); save(); return rec;
+}
+function runFrom(bankRows, bankFile, bookRows, bookFile, bankClosing, bookClosing) {
+  const E = engine(), entries = E.normalize(bankRows, "bank")[0];
+  if (!entries.length) throw new E.ReconcileError("empty", "bank: no transactions found");
+  const prev = previousFor(entries.map((e) => e.date).sort()[0]);
+  const result = E.reconcile(bankRows, bookRows, E.previousFrom(prev ? prev.result.carry_forward : []), bankClosing, bookClosing);
+  return saveRun(result, bankFile, bookFile, prev);
+}
+async function sampleRows(name) {
+  const r = await fetch("samples/bank/" + name);
+  if (!r.ok) throw new Error("sample missing: " + name);
+  return engine().readCsv(await r.text());
+}
+// the demo opens with October already reconciled, so November shows items carried forward
+async function seedRecon() {
+  if (db.reconSeeded) return;
+  db.reconSeeded = true;
+  try { runFrom(await sampleRows("bank-statement-oct-2026.csv"), "bank-statement-oct-2026.csv", await sampleRows("cash-book-oct-2026.csv"), "cash-book-oct-2026.csv"); }
+  catch (e) { /* offline or files missing: start empty */ }
+  save();
+}
+async function reconRoutes(url, method, options) {
+  await seedRecon();
+  if (url === "/api/reconciliations" && method === "GET") return reply(200, { reconciliations: db.recons.map(summary).sort((a, b) => (a.period_end < b.period_end ? 1 : -1)) });
+  if (url === "/api/reconciliations" && method === "POST") {
+    const form = options.body, bank = form.get("bank"), book = form.get("book");
+    if (!bank || !book || !bank.size || !book.size) return fail("need_files");
+    if (![bank.name, book.name].every((n) => /\.(csv|txt)$/i.test(n))) return fail("demo_csv");
+    const bal = (v) => (v && String(v).trim() ? engine().parseAmount(v) / 100 : null);
+    try {
+      await sleep(500);
+      const rec = runFrom(engine().readCsv(await bank.text()), bank.name, engine().readCsv(await book.text()), book.name, bal(form.get("bank_closing")), bal(form.get("book_closing")));
+      return reply(200, { ok: true, reconciliation: rec });
+    } catch (e) { return fail(e.code || "bad_file", e.message); }
+  }
+  const m = url.match(/^\/api\/reconciliations\/([^/]+)$/);
+  const rec = m && db.recons.find((r) => r.id === decodeURIComponent(m[1]));
+  if (!rec) return fail("not_found");
+  if (method === "DELETE") { db.recons = db.recons.filter((r) => r !== rec); save(); return reply(200, { ok: true }); }
+  return reply(200, { reconciliation: rec });
+}
+async function sampleFiles() {
+  const file = async (n) => new File([await (await fetch("samples/bank/" + n)).blob()], n, { type: "text/csv" });
+  return [await file("bank-statement-nov-2026.csv"), await file("cash-book-nov-2026.csv")];
+}
+
 /* ---------- CSV export (same columns as app/services.py) ---------- */
 function downloadCsv(invoices) {
   const cols = ["ID", "Status", "Supplier (AR)", "Supplier (EN)", "Supplier VAT No", "Invoice No", "Invoice Date", "Currency", "Subtotal", "VAT", "Total",
@@ -186,6 +247,7 @@ const FC_DEMO = {
   downloadCsv,
   reset() { try { localStorage.removeItem(STORE); } catch (e) { /* ignore */ } seed(); },
   fileUrl: (x) => "samples/" + encodeURIComponent(x.file_name),
+  sampleFiles,
   remaining: () => { if (!db) load(); return UPLOAD_ORDER.length - db.next; },
   // exposed for tests
   _runChecks: runChecks, _samples: SAMPLES, _duplicateKey: duplicateKey,

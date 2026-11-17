@@ -100,3 +100,24 @@ def test_ask_finance(client, monkeypatch):
     monkeypatch.setattr(assistant, "text_models", lambda: [model])
     assert client.post("/api/ask", json={"question": "hi"}).json() == {"ok": True, "answer": "Hello", "by": "gemini"}
     assert client.post("/api/ask", json={"question": "  "}).status_code == 400
+
+
+def test_bank_reconciliation_routes(client):
+    from pathlib import Path
+    bank_dir = Path(__file__).resolve().parent.parent / "samples" / "bank"
+    files = lambda m: {"bank": (f"bank-statement-{m}.csv", (bank_dir / f"bank-statement-{m}.csv").read_bytes(), "text/csv"),  # noqa: E731
+                       "book": (f"cash-book-{m}.csv", (bank_dir / f"cash-book-{m}.csv").read_bytes(), "text/csv")}
+    assert client.post("/api/reconciliations", files=files("oct-2026")).status_code == 401
+    sign_in(client, "clerk@example.com")
+    assert client.post("/api/reconciliations", files=files("oct-2026")).json()["ok"]
+    nov = client.post("/api/reconciliations", files=files("nov-2026")).json()["reconciliation"]
+    assert nov["difference"] == 0 and nov["result"]["previous"] is not None
+    assert len(client.get("/api/reconciliations").json()["reconciliations"]) == 2
+    xlsx = client.get(f"/api/reconciliations/{nov['id']}/xlsx")
+    assert xlsx.status_code == 200 and xlsx.content[:2] == b"PK"
+    bad = client.post("/api/reconciliations", files={"bank": ("a.csv", b"x,y\n1,2", "text/csv"), "book": ("b.csv", b"x,y", "text/csv")})
+    assert bad.status_code == 400 and bad.json()["code"] == "no_columns"
+    assert client.delete(f"/api/reconciliations/{nov['id']}").status_code == 403   # clerks can't delete
+    sign_in(client, "manager@example.com")
+    assert client.delete(f"/api/reconciliations/{nov['id']}").json()["ok"]
+    assert client.get(f"/api/reconciliations/{nov['id']}").status_code == 404
