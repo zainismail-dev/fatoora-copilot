@@ -108,7 +108,7 @@ app/
 web/             the app (index.html, app.js, recon.js, i18n.js, styles.css), demo.js and reconcile.js (browser copy of the engine for the demo)
 docs/            built demo for GitHub Pages (python tools/build_demo.py)
 samples/         8 fictional invoices, 4 with planted errors
-samples/bank/    October and November bank statements and cash books for a fictional company
+samples/bank/    October and November bank statements and cash books for a fictional company (CSV, plus November in Excel)
 tests/           pytest suite
 ```
 
